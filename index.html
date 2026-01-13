@@ -3,74 +3,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vacaciones Operarios - Cloud</title>
+    <title>Vacaciones Pro - Instantáneo</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --primary: #2563eb; --danger: #ef4444; --success: #22c55e; --text: #1e293b; --bg: #f8fafc; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding: 10px; margin: 0; }
-        .container { max-width: 500px; margin: 20px auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
-        .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 15px; }
-        .day { aspect-ratio: 1; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 6px; font-size: 0.9em; }
-        .day.header { font-weight: bold; border: none; color: #64748b; cursor: default; }
+        .container { max-width: 500px; margin: 10px auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+        .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 10px; }
+        .day { aspect-ratio: 1; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 6px; font-size: 0.85em; transition: all 0.1s; }
+        .day.header { font-weight: bold; border: none; color: #64748b; }
         .day.disabled { background: #f1f5f9; cursor: not-allowed; color: #cbd5e1; }
-        .day.selected { background: var(--danger); color: white; }
+        .day.selected { background: var(--danger); color: white; transform: scale(0.95); }
         .day.approved { background: var(--success); color: white; }
-        .alert-box { padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 0.9em; border-left: 4px solid; position: relative; }
-        .alert-success { background: #f0fdf4; border-color: var(--success); color: #166534; }
-        .alert-danger { background: #fef2f2; border-color: var(--danger); color: #991b1b; }
-        .btn { padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; margin-top: 10px; }
+        .btn { padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; margin-top: 8px; }
         .btn-primary { background: var(--primary); color: white; }
         .btn-success { background: var(--success); color: white; }
         .btn-danger { background: var(--danger); color: white; }
-        .input-field { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; }
+        .input-field { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #cbd5e1; border-radius: 8px; }
         .hidden { display: none; }
-        .user-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #f1f5f9; }
-        .badge { background: var(--danger); color: white; padding: 2px 7px; border-radius: 50%; font-size: 0.7em; margin-right: 5px; }
-        .loading { text-align: center; color: var(--primary); font-weight: bold; padding: 20px; }
+        .user-row { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
+        .badge { background: var(--danger); color: white; padding: 2px 7px; border-radius: 50%; font-size: 0.7em; }
+        #sync-indicator { position: fixed; top: 10px; right: 10px; font-size: 10px; color: #94a3b8; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div id="loading-overlay" class="hidden loading">Sincronizando con la nube...</div>
+<div id="sync-indicator">● Cloud Sync</div>
 
+<div class="container">
     <div id="login-screen">
-        <h2 style="text-align:center">📅 Acceso Vacaciones</h2>
-        <input type="text" id="login-user" class="input-field" placeholder="Nombre de pila (jordi, raul...)">
+        <h2 style="text-align:center">📅 Vacaciones</h2>
+        <input type="text" id="login-user" class="input-field" placeholder="Nombre (jordi, raul...)">
         <input type="password" id="login-pass" class="input-field" placeholder="Contraseña">
-        <button class="btn btn-primary" onclick="attemptLogin()">INICIAR SESIÓN</button>
+        <button class="btn btn-primary" onclick="attemptLogin()">ENTRAR</button>
     </div>
 
     <div id="user-screen" class="hidden">
         <div id="user-alerts"></div>
         <div style="display:flex; justify-content: space-between; align-items: center;">
-            <h3 id="u-full-name" style="margin:0; font-size: 1.1em; color: var(--primary);"></h3>
-            <button class="btn btn-danger" style="width:auto; margin:0; padding: 5px 15px;" onclick="logout()">Salir</button>
+            <h4 id="u-full-name" style="margin:0; color: var(--primary);"></h4>
+            <button onclick="logout()" style="border:none; background:none; color:var(--danger); cursor:pointer">Salir</button>
         </div>
-        <p>Días disponibles: <strong id="u-days">0</strong></p>
-        <div style="text-align:center; background: #f8fafc; padding: 10px; border-radius: 8px;">
+        <p style="font-size:0.9em">Disponibles: <strong id="u-days">0</strong> días</p>
+        <div style="text-align:center; margin: 10px 0;">
             <button onclick="changeMonth(-1)">◀</button>
-            <span id="month-name" style="font-weight:bold; margin: 0 10px;"></span>
+            <span id="month-name" style="font-weight:bold; margin: 0 10px; font-size:0.9em"></span>
             <button onclick="changeMonth(1)">▶</button>
         </div>
         <div class="grid" id="calendar-grid"></div>
-        <button class="btn btn-success" id="btn-solicitar" onclick="solicitar()">SOLICITAR DÍAS</button>
-        <button class="btn" style="background:#f1f5f9" onclick="showChangePass()">Cambiar Contraseña</button>
+        <button class="btn btn-success" onclick="solicitar()">ENVIAR SOLICITUD</button>
+        <button class="btn" style="background:#f1f5f9; font-size:0.8em" onclick="showChangePass()">⚙️ Cambiar Clave</button>
     </div>
 
     <div id="admin-screen" class="hidden">
-        <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom:15px;">
-            <h2 style="margin:0">Panel Admin</h2>
-            <button class="btn btn-danger" style="width:auto; margin:0; padding: 5px 15px;" onclick="logout()">Salir</button>
+        <div style="display:flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin:0">Panel Admin</h3>
+            <button onclick="logout()" style="border:none; background:none; color:var(--danger); cursor:pointer">Cerrar</button>
         </div>
-        <div id="admin-user-list"></div>
+        <div id="admin-user-list" style="margin-top:15px"></div>
         <div id="admin-rev-box" class="hidden" style="margin-top:20px; border-top:2px solid #eee; padding-top:15px;">
-            <h4 id="rev-name"></h4>
+            <h4 id="rev-name" style="margin:0"></h4>
             <div id="rev-calendar" class="grid"></div>
-            <div style="display:flex; gap:10px; margin-top:15px;">
-                <button class="btn btn-success" onclick="processSelection()">APROBAR</button>
-                <button class="btn btn-danger" onclick="rejectAll()">DENEGAR TODO</button>
-            </div>
+            <button class="btn btn-success" onclick="processSelection()">APROBAR SELECCIÓN</button>
+            <button class="btn btn-danger" onclick="rejectAll()">DENEGAR TODO</button>
         </div>
     </div>
 
@@ -83,26 +78,42 @@
 </div>
 
 <script>
-    // Configuración de Supabase
     const SUPABASE_URL = 'https://rxlpyuccujvucqjdtixt.supabase.co';
-    const SUPABASE_KEY = 'TU_KEY_ANON_AQUÍ'; // *** ¡DEBES PEGAR TU KEY ANON AQUÍ! ***
-    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const SUPABASE_KEY = 'PEGA_AQUÍ_TU_ANON_KEY'; 
+    const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let curU = null; let revU = null; let users = []; let config = {};
     let curM = new Date().getMonth(); let curY = 2026;
     let temp = []; let adminChoice = [];
 
-    async function loadData() {
-        showLoading(true);
-        const { data: opers } = await _supabase.from('operarios').select('*');
-        const { data: cfg } = await _supabase.from('config').select('*').single();
-        users = opers.sort((a,b) => a.nombre.localeCompare(b.nombre));
+    // --- TIEMPO REAL ---
+    // Esta función escucha cambios en la base de datos y actualiza la pantalla sin recargar
+    _sb.channel('db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'operarios' }, payload => {
+          const idx = users.findIndex(u => u.id === payload.new.id);
+          if (idx !== -1) {
+              users[idx] = payload.new;
+              if (curU && curU.id === payload.new.id) {
+                  curU = payload.new;
+                  checkMessages();
+                  renderCal('calendar-grid', true);
+              }
+              if (document.getElementById('admin-screen').classList.contains('hidden') === false) {
+                  renderAdmin();
+              }
+          }
+      })
+      .subscribe();
+
+    async function init() {
+        const { data: opers } = await _sb.from('operarios').select('*');
+        const { data: cfg } = await _sb.from('config').select('*').single();
+        users = opers;
         config = cfg;
-        showLoading(false);
     }
 
     async function attemptLogin() {
-        await loadData();
+        await init();
         const uIn = document.getElementById('login-user').value.toLowerCase().trim();
         const pIn = document.getElementById('login-pass').value;
 
@@ -120,9 +131,14 @@
 
     function renderAdmin() {
         const list = document.getElementById('admin-user-list');
-        list.innerHTML = '<h3>Lista de Personal</h3>';
-        users.forEach(u => {
-            list.innerHTML += `<div class="user-row"><span onclick="openRev(${u.id})" style="cursor:pointer; font-size:0.9em">${u.solicitudes?.length > 0 ? '<span class="badge">!</span>' : ''} ${u.nombre}</span><input type="number" value="${u.total_dias}" style="width:40px" onchange="updTotal(${u.id}, this.value)"></div>`;
+        list.innerHTML = '';
+        users.sort((a,b) => a.nombre.localeCompare(b.nombre)).forEach(u => {
+            const hasSols = u.solicitudes && u.solicitudes.length > 0;
+            list.innerHTML += `
+                <div class="user-row" onclick="openRev(${u.id})">
+                    <span>${hasSols ? '<span class="badge">!</span>' : ''} ${u.nombre}</span>
+                    <span style="font-size:0.8em; color:#64748b">${u.aprobados?.length || 0}/${u.total_dias}d</span>
+                </div>`;
         });
     }
 
@@ -131,11 +147,13 @@
         const user = isOp ? curU : revU;
         document.getElementById('month-name').innerText = `${new Intl.DateTimeFormat('es',{month:'long'}).format(new Date(curY, curM))} ${curY}`;
         ['L','M','X','J','V','S','D'].forEach(h => g.innerHTML += `<div class="day header">${h}</div>`);
+        
         let first = new Date(curY, curM, 1).getDay();
         let off = first === 0 ? 6 : first - 1;
         for(let i=0; i<off; i++) g.innerHTML += '<div></div>';
         
-        for(let d=1; d<=new Date(curY, curM+1, 0).getDate(); d++) {
+        const totalDays = new Date(curY, curM+1, 0).getDate();
+        for(let d=1; d<=totalDays; d++) {
             let dt = `${curY}-${String(curM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
             let isD = (new Date(curY, curM, d).getDay() % 6 === 0) || (config.festivos || []).includes(dt);
             let cls = 'day';
@@ -154,7 +172,7 @@
             let i = temp.indexOf(dt);
             if(i > -1) temp.splice(i, 1);
             else if(((curU.aprobados?.length || 0) + (curU.solicitudes?.length || 0) + temp.length) < curU.total_dias) temp.push(dt);
-            renderCal('calendar-grid', true);
+            renderCal('calendar-grid', true); // Actualización visual instantánea
         } else {
             if(revU.solicitudes?.includes(dt)) {
                 let i = adminChoice.indexOf(dt);
@@ -166,47 +184,34 @@
 
     async function solicitar() {
         if(temp.length === 0) return;
-        showLoading(true);
         const nuevasSols = [...(curU.solicitudes || []), ...temp];
-        const { error } = await _supabase.from('operarios').update({ solicitudes: nuevasSols }).eq('id', curU.id);
-        if(!error) { alert("Solicitud enviada"); temp = []; await attemptLogin(); }
-        showLoading(false);
+        temp = []; // Limpiar localmente rápido
+        document.getElementById('sync-indicator').innerText = '● Guardando...';
+        await _sb.from('operarios').update({ solicitudes: nuevasSols }).eq('id', curU.id);
+        document.getElementById('sync-indicator').innerText = '● Cloud Sync';
     }
 
     async function processSelection() {
-        showLoading(true);
         const nuevosAprobs = [...(revU.aprobados || []), ...adminChoice];
-        await _supabase.from('operarios').update({ 
-            aprobados: nuevosAprobs, 
-            solicitudes: [], 
-            mensaje: `✅ Aprobado: [${adminChoice.join(', ')}]` 
+        const res = await _sb.from('operarios').update({ 
+            aprobados: nuevosAprobs, solicitudes: [], 
+            mensaje: `✅ Aprobado: [${adminChoice.length}] días.` 
         }).eq('id', revU.id);
-        adminChoice = []; await loadData(); renderAdmin();
+        adminChoice = [];
         document.getElementById('admin-rev-box').classList.add('hidden');
-        showLoading(false);
     }
 
     async function rejectAll() {
-        if(!confirm("¿Denegar todo?")) return;
-        showLoading(true);
-        await _supabase.from('operarios').update({ 
-            solicitudes: [], 
-            mensaje: `❌ Solicitud denegada.` 
-        }).eq('id', revU.id);
-        await loadData(); renderAdmin();
+        if(!confirm("¿Denegar?")) return;
+        await _sb.from('operarios').update({ solicitudes: [], mensaje: `❌ Solicitud rechazada.` }).eq('id', revU.id);
         document.getElementById('admin-rev-box').classList.add('hidden');
-        showLoading(false);
     }
 
-    async function updTotal(id, val) {
-        await _supabase.from('operarios').update({ total_dias: parseInt(val) }).eq('id', id);
-    }
-
-    async function saveNewPass() {
-        const p = document.getElementById('new-pass').value;
-        if(curU) await _supabase.from('operarios').update({ pass: p }).eq('id', curU.id);
-        else await _supabase.from('config').update({ admin_pass: p }).eq('id', 1);
-        alert("Contraseña actualizada"); hideChangePass();
+    function openRev(id) {
+        revU = users.find(u => u.id === id); adminChoice = [...(revU.solicitudes || [])];
+        document.getElementById('admin-rev-box').classList.remove('hidden');
+        document.getElementById('rev-name').innerText = revU.nombre;
+        renderCal('rev-calendar', false);
     }
 
     function checkMessages() {
@@ -216,21 +221,19 @@
             area.innerHTML = `<div class="alert-box alert-${type}">${curU.mensaje} <button onclick="clearMsg()" style="float:right; border:none; background:none; cursor:pointer">✕</button></div>`;
         }
     }
-    async function clearMsg() { await _supabase.from('operarios').update({ mensaje: null }).eq('id', curU.id); curU.mensaje = null; checkMessages(); }
-
-    function openRev(id) {
-        revU = users.find(u => u.id === id); adminChoice = [...(revU.solicitudes || [])];
-        document.getElementById('admin-rev-box').classList.remove('hidden');
-        document.getElementById('rev-name').innerText = "Revisando: " + revU.nombre;
-        renderCal('rev-calendar', false);
-    }
-
-    function showLoading(s) { document.getElementById('loading-overlay').classList.toggle('hidden', !s); }
+    async function clearMsg() { await _sb.from('operarios').update({ mensaje: null }).eq('id', curU.id); }
     function logout() { curU = null; revU = null; showScreen('login-screen'); }
     function showScreen(id) { document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden')); document.getElementById(id).classList.remove('hidden'); }
     function changeMonth(n) { curM += n; if(curM > 11){curM=0;curY++;} if(curM < 0){curM=11;curY--;} renderCal(curU ? 'calendar-grid' : 'rev-calendar', !!curU); }
     function showChangePass() { document.getElementById('change-pass-screen').classList.remove('hidden'); }
     function hideChangePass() { document.getElementById('change-pass-screen').classList.add('hidden'); }
+    async function saveNewPass() {
+        const p = document.getElementById('new-pass').value;
+        if(curU) await _sb.from('operarios').update({ pass: p }).eq('id', curU.id);
+        else await _sb.from('config').update({ admin_pass: p }).eq('id', 1);
+        alert("OK"); hideChangePass();
+    }
+    init(); // Carga inicial
 </script>
 </body>
 </html>

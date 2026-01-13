@@ -88,11 +88,15 @@
             const { data: opers, error: e1 } = await _sb.from('operarios').select('*');
             const { data: cfg, error: e2 } = await _sb.from('config').select('*').single();
             if(e1 || e2) throw (e1 || e2);
-            users = opers; config = cfg; ready = true;
+            
+            // Asignar 26 días por defecto si no tienen valor
+            users = opers.map(u => ({...u, total_dias: u.total_dias || 26}));
+            config = cfg; 
+            ready = true;
             document.getElementById('sync-status').innerText = '● En línea';
             document.getElementById('sync-status').style.color = '#22c55e';
         } catch (e) {
-            document.getElementById('error-log').innerText = "Error: Desactiva el RLS en Supabase (Tables -> RLS -> Disable)";
+            document.getElementById('error-log').innerText = "Error de conexión o RLS activo.";
         }
     }
 
@@ -133,12 +137,14 @@
     async function processSelection() {
         const nuevosAprobs = [...(revU.aprobados || []), ...adminChoice];
         await _sb.from('operarios').update({ aprobados: nuevosAprobs, solicitudes: [], mensaje: `✅ Aprobado: [${adminChoice.length}] días.` }).eq('id', revU.id);
-        location.reload();
+        precarga().then(() => renderAdmin());
+        document.getElementById('admin-rev-box').classList.add('hidden');
     }
 
     async function rejectAll() {
         await _sb.from('operarios').update({ solicitudes: [], mensaje: `❌ Solicitud rechazada.` }).eq('id', revU.id);
-        location.reload();
+        precarga().then(() => renderAdmin());
+        document.getElementById('admin-rev-box').classList.add('hidden');
     }
 
     function renderCal(gid, isOp) {
@@ -182,7 +188,9 @@
         if(temp.length === 0) return;
         const nuevasSols = [...(curU.solicitudes || []), ...temp];
         await _sb.from('operarios').update({ solicitudes: nuevasSols }).eq('id', curU.id);
-        alert("Enviado"); location.reload();
+        alert("Enviado");
+        temp = [];
+        precarga().then(() => renderCal('calendar-grid', true));
     }
 
     function checkMessages() {
@@ -192,10 +200,31 @@
             area.innerHTML = `<div class="alert-box alert-${type}">${curU.mensaje} <button onclick="clearMsg()" style="float:right; border:none; background:none; cursor:pointer">✕</button></div>`;
         }
     }
-    async function clearMsg() { await _sb.from('operarios').update({ mensaje: null }).eq('id', curU.id); location.reload(); }
-    function logout() { location.reload(); }
-    function showScreen(id) { document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden')); document.getElementById(id).classList.remove('hidden'); }
-    function changeMonth(n) { curM += n; if(curM > 11){curM=0;curY++;} if(curM < 0){curM=11;curY--;} renderCal(curU ? 'calendar-grid' : 'rev-calendar', !!curU); }
+    async function clearMsg() { 
+        await _sb.from('operarios').update({ mensaje: null }).eq('id', curU.id); 
+        curU.mensaje = null;
+        document.getElementById('user-alerts').innerHTML = '';
+    }
+    
+    // BOTÓN SALIR REPARADO: Limpia variables y vuelve al login sin recargar
+    function logout() { 
+        curU = null; 
+        revU = null; 
+        temp = [];
+        document.getElementById('login-user').value = '';
+        document.getElementById('login-pass').value = '';
+        showScreen('login-screen'); 
+    }
+
+    function showScreen(id) { 
+        document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden')); 
+        document.getElementById(id).classList.remove('hidden'); 
+    }
+    
+    function changeMonth(n) { 
+        curM += n; if(curM > 11){curM=0;curY++;} if(curM < 0){curM=11;curY--;} 
+        renderCal(curU ? 'calendar-grid' : 'rev-calendar', !!curU); 
+    }
     
     precarga();
 </script>

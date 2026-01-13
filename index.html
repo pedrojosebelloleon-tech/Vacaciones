@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vacaciones - Login Rápido</title>
+    <style>
+        :root { --primary: #2563eb; --danger: #ef4444; --success: #22c55e; --text: #1e293b; --bg: #f8fafc; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding: 10px; margin: 0; }
+        .container { max-width: 500px; margin: 20px auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+        .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 15px; }
+        .day { aspect-ratio: 1; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 6px; font-size: 0.9em; }
+        .day.header { font-weight: bold; border: none; color: #64748b; cursor: default; }
+        .day.disabled { background: #f1f5f9; cursor: not-allowed; color: #cbd5e1; }
+        .day.selected { background: var(--danger); color: white; }
+        .day.approved { background: var(--success); color: white; }
+        .alert-box { padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 0.9em; border-left: 4px solid; position: relative; }
+        .alert-success { background: #f0fdf4; border-color: var(--success); color: #166534; }
+        .alert-danger { background: #fef2f2; border-color: var(--danger); color: #991b1b; }
+        .btn { padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; margin-top: 10px; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .input-field { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; }
+        .hidden { display: none; }
+        .user-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #f1f5f9; }
+        .badge { background: var(--danger); color: white; padding: 2px 7px; border-radius: 50%; font-size: 0.7em; margin-right: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="login-screen">
+        <h2 style="text-align:center">📅 Acceso Vacaciones</h2>
+        <p style="text-align:center; font-size:0.9em; color:#64748b">Introduce tu nombre de pila</p>
+        <input type="text" id="login-user" class="input-field" placeholder="jordi, raul, dani...">
+        <input type="password" id="login-pass" class="input-field" placeholder="Contraseña">
+        <button class="btn btn-primary" onclick="attemptLogin()">INICIAR SESIÓN</button>
+    </div>
+
+    <div id="user-screen" class="hidden">
+        <div id="user-alerts"></div>
+        <div style="display:flex; justify-content: space-between; align-items: center;">
+            <h3 id="u-full-name" style="margin:0; font-size: 1.1em; color: var(--primary);"></h3>
+            <button class="btn btn-danger" style="width:auto; margin:0; padding: 5px 15px;" onclick="logout()">Salir</button>
+        </div>
+        <p style="margin-top:5px">Días disponibles: <strong id="u-days">0</strong></p>
+        <div style="text-align:center; background: #f8fafc; padding: 10px; border-radius: 8px;">
+            <button onclick="changeMonth(-1)">◀</button>
+            <span id="month-name" style="font-weight:bold; margin: 0 10px;"></span>
+            <button onclick="changeMonth(1)">▶</button>
+        </div>
+        <div class="grid" id="calendar-grid"></div>
+        <button class="btn btn-success" onclick="solicitar()">SOLICITAR ESTOS DÍAS</button>
+        <button class="btn" style="background:#f1f5f9" onclick="showChangePass()">Cambiar Contraseña</button>
+    </div>
+
+    <div id="admin-screen" class="hidden">
+        <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom:15px;">
+            <h2 style="margin:0">Panel Admin</h2>
+            <button class="btn btn-danger" style="width:auto; margin:0; padding: 5px 15px;" onclick="logout()">Salir</button>
+        </div>
+        <div id="admin-user-list"></div>
+        <div id="admin-rev-box" class="hidden" style="margin-top:20px; border-top:2px solid #eee; padding-top:15px;">
+            <h4 id="rev-name"></h4>
+            <div id="rev-calendar" class="grid"></div>
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <button class="btn btn-success" onclick="processSelection()">APROBAR</button>
+                <button class="btn btn-danger" onclick="rejectAll()">DENEGAR TODO</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="change-pass-screen" class="hidden">
+        <h3>Nueva Contraseña</h3>
+        <input type="password" id="new-pass" class="input-field">
+        <button class="btn btn-success" onclick="saveNewPass()">GUARDAR</button>
+        <button class="btn" onclick="hideChangePass()">CANCELAR</button>
+    </div>
+</div>
+
+<script>
+    // Configuración de usuarios: [Nombre Pila (Login), Nombre Completo (Visualización)]
+    const staffData = [
+        ["jordi", "AGUSTI CASANOVAS, JORDI"],
+        ["xavi", "DIAGO BERTRAN, XAVI"],
+        ["alfonso", "GIMENEZ SANCHEZ, ALFONSO"],
+        ["abel", "GONZALEZ CABALLERO, ABEL"],
+        ["raul", "LÓPEZ GÓMEZ, RAUL"],
+        ["humberto", "LOZANO CORTEZ, HUMBERTO"],
+        ["jose", "MARTÍNEZ GARCIA, JOSÉ ALFONSO"],
+        ["daniel", "MARTINEZ HERNANDEZ, DANIEL"],
+        ["dixon", "MEDINA SIERRA, DIXON"],
+        ["orlando", "MEDINA SIERRA, ORLANDO AMPARO"],
+        ["thierno", "MENDY, THIERNO AMADOU"],
+        ["francisco", "MUÑOZ SERRANO, FRANCISCO"],
+        ["arkadi", "OHANYAN, ARKADI"],
+        ["oscar", "REVOLLO CASTELLÓN, ÓSCAR"],
+        ["dani", "RIVERO MUÑOZ, DANIEL"],
+        ["jesus", "ROLDAN LOPEZ, JESUS"],
+        ["juan", "ROMERO TORRES JUAN"],
+        ["pol", "VILASECA GUSTEMS, POL"]
+    ];
+
+    let db = JSON.parse(localStorage.getItem('vaca_db_v5')) || {
+        admin: { pass: "1234" },
+        users: staffData.sort((a,b) => a[1].localeCompare(b[1])).map((s, i) => ({ 
+            id: i, login: s[0], nombre: s[1], pass: "1234", total: 22, sols: [], aprobs: [], msg: null 
+        })),
+        festivos: ["2026-01-01", "2026-01-06", "2026-05-01", "2026-12-25"]
+    };
+
+    let curU = null; let revU = null;
+    let curM = new Date().getMonth(); let curY = 2026;
+    let temp = []; let adminChoice = [];
+
+    function save() { localStorage.setItem('vaca_db_v5', JSON.stringify(db)); }
+
+    function logout() { curU = null; revU = null; temp = []; adminChoice = []; showScreen('login-screen'); }
+
+    function attemptLogin() {
+        const u = document.getElementById('login-user').value.toLowerCase().trim();
+        const p = document.getElementById('login-pass').value;
+        
+        if(u === 'admin' && p === db.admin.pass) {
+            showScreen('admin-screen'); renderAdmin();
+        } else {
+            const user = db.users.find(x => x.login === u && x.pass === p);
+            if(user) {
+                curU = user; showScreen('user-screen');
+                document.getElementById('u-full-name').innerText = curU.nombre;
+                checkMessages(); renderCal('calendar-grid', true);
+            } else { alert("Nombre o contraseña incorrectos"); }
+        }
+    }
+
+    function checkMessages() {
+        const area = document.getElementById('user-alerts');
+        area.innerHTML = '';
+        if(curU.msg) {
+            const type = curU.msg.includes('Aprobada') ? 'success' : 'danger';
+            area.innerHTML = `<div class="alert-box alert-${type}">${curU.msg} <button onclick="clearMsg()" style="float:right; border:none; background:none; cursor:pointer">✕</button></div>`;
+        }
+    }
+
+    function clearMsg() { curU.msg = null; save(); checkMessages(); }
+
+    function renderAdmin() {
+        const list = document.getElementById('admin-user-list');
+        list.innerHTML = '<h3>Lista de Personal</h3>';
+        db.users.forEach(u => {
+            list.innerHTML += `<div class="user-row"><span onclick="openRev(${u.id})" style="cursor:pointer; font-size:0.9em">${u.sols.length > 0 ? '<span class="badge">!</span>' : ''} ${u.nombre}</span><input type="number" value="${u.total}" style="width:40px" onchange="updTotal(${u.id}, this.value)"></div>`;
+        });
+    }
+
+    function openRev(id) {
+        revU = db.users.find(u => u.id === id); adminChoice = [...revU.sols];
+        document.getElementById('admin-rev-box').classList.remove('hidden');
+        document.getElementById('rev-name').innerText = "Revisando: " + revU.nombre;
+        renderCal('rev-calendar', false);
+    }
+
+    function renderCal(gid, isOp) {
+        const g = document.getElementById(gid); g.innerHTML = '';
+        const user = isOp ? curU : revU;
+        document.getElementById('month-name').innerText = `${new Intl.DateTimeFormat('es',{month:'long'}).format(new Date(curY, curM))} ${curY}`;
+        ['L','M','X','J','V','S','D'].forEach(h => g.innerHTML += `<div class="day header">${h}</div>`);
+        let first = new Date(curY, curM, 1).getDay();
+        let off = first === 0 ? 6 : first - 1;
+        for(let i=0; i<off; i++) g.innerHTML += '<div></div>';
+        for(let d=1; d<=new Date(curY, curM+1, 0).getDate(); d++) {
+            let dt = `${curY}-${String(curM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            let isD = (new Date(curY, curM, d).getDay() % 6 === 0) || db.festivos.includes(dt);
+            let cls = 'day';
+            if(isD) cls += ' disabled';
+            else if(user.aprobs.includes(dt)) cls += ' approved';
+            else if(isOp && (user.sols.includes(dt) || temp.includes(dt))) cls += ' selected';
+            else if(!isOp && user.sols.includes(dt)) cls += adminChoice.includes(dt) ? ' selected' : '';
+            g.innerHTML += `<div class="${cls}" onclick="clDay('${dt}',${isD},${isOp})">${d}</div>`;
+        }
+        if(isOp) document.getElementById('u-days').innerText = user.total - user.aprobs.length;
+    }
+
+    function clDay(dt, isD, isOp) {
+        if(isD) return;
+        if(isOp) {
+            let i = temp.indexOf(dt);
+            if(i > -1) temp.splice(i, 1);
+            else if((curU.aprobs.length + curU.sols.length + temp.length) < curU.total) temp.push(dt);
+            renderCal('calendar-grid', true);
+        } else {
+            if(revU.sols.includes(dt)) {
+                let i = adminChoice.indexOf(dt);
+                if(i > -1) adminChoice.splice(i, 1); else adminChoice.push(dt);
+                renderCal('rev-calendar', false);
+            }
+        }
+    }
+
+    function processSelection() {
+        if(adminChoice.length === 0) return alert("Selecciona días.");
+        revU.aprobs.push(...adminChoice);
+        revU.msg = `✅ Solicitud Aprobada para [${adminChoice.join(', ')}].`;
+        revU.sols = []; save(); renderAdmin(); document.getElementById('admin-rev-box').classList.add('hidden');
+    }
+
+    function rejectAll() {
+        if(confirm("¿Denegar todo?")) {
+            revU.msg = `❌ Solicitud Denegada.`;
+            revU.sols = []; save(); renderAdmin(); document.getElementById('admin-rev-box').classList.add('hidden');
+        }
+    }
+
+    function solicitar() {
+        if(temp.length === 0) return;
+        if(confirm("¿Enviar solicitud?")) { curU.sols.push(...temp); temp = []; save(); renderCal('calendar-grid', true); }
+    }
+
+    function updTotal(id, val) { db.users.find(u => u.id === id).total = parseInt(val); save(); }
+    function showScreen(id) { document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden')); document.getElementById(id).classList.remove('hidden'); }
+    function changeMonth(n) { curM += n; if(curM > 11){curM=0;curY++;} if(curM < 0){curM=11;curY--;} renderCal(curU ? 'calendar-grid' : 'rev-calendar', !!curU); }
+    function showChangePass() { document.getElementById('change-pass-screen').classList.remove('hidden'); }
+    function hideChangePass() { document.getElementById('change-pass-screen').classList.add('hidden'); }
+    function saveNewPass() { const p = document.getElementById('new-pass').value; if(curU) curU.pass = p; else db.admin.pass = p; save(); alert("Cambiado"); hideChangePass(); }
+</script>
+</body>
+</html>

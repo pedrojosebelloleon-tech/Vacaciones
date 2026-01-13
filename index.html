@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vacaciones Pro - Sincronizado</title>
+    <title>Vacaciones Pro - Master Admin</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --primary: #2563eb; --danger: #ef4444; --success: #22c55e; --text: #1e293b; --bg: #f8fafc; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding: 10px; margin: 0; }
         .container { max-width: 500px; margin: 10px auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
         .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 10px; }
-        .day { aspect-ratio: 1; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 6px; font-size: 0.85em; transition: all 0.1s; }
-        .day.header { font-weight: bold; border: none; color: #64748b; cursor: default; }
+        .day { aspect-ratio: 1; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 6px; font-size: 0.85em; }
+        .day.header { font-weight: bold; border: none; color: #64748b; }
         .day.disabled { background: #f1f5f9; cursor: not-allowed; color: #cbd5e1; }
-        .day.selected { background: var(--danger); color: white; transform: scale(0.95); }
+        .day.selected { background: var(--danger); color: white; }
         .day.approved { background: var(--success); color: white; }
         .btn { padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; margin-top: 8px; }
         .btn-primary { background: var(--primary); color: white; }
@@ -21,12 +21,11 @@
         .btn-danger { background: var(--danger); color: white; }
         .input-field { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; }
         .hidden { display: none; }
-        .user-row { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
-        .badge { background: var(--danger); color: white; padding: 2px 7px; border-radius: 50%; font-size: 0.7em; }
-        #sync-status { position: fixed; top: 10px; right: 10px; font-size: 10px; color: #94a3b8; font-weight: bold; }
-        .alert-box { padding: 10px; border-radius: 8px; margin-bottom: 10px; font-size: 0.9em; border-left: 4px solid; }
-        .alert-success { background: #f0fdf4; border-color: var(--success); color: #166534; }
-        .alert-danger { background: #fef2f2; border-color: var(--danger); color: #991b1b; }
+        .user-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #f1f5f9; }
+        .counter-btn { background: #e2e8f0; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .tab-btn { flex: 1; padding: 10px; border: none; background: #f1f5f9; cursor: pointer; font-weight: bold; }
+        .tab-btn.active { background: var(--primary); color: white; }
+        #sync-status { position: fixed; top: 10px; right: 10px; font-size: 10px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -35,40 +34,63 @@
 
 <div class="container">
     <div id="login-screen">
-        <h2 style="text-align:center">📅 Vacaciones</h2>
-        <input type="text" id="login-user" class="input-field" placeholder="Nombre (jordi, raul...)">
+        <h2 style="text-align:center">📅 Vacaciones 2026</h2>
+        <input type="text" id="login-user" class="input-field" placeholder="Usuario">
         <input type="password" id="login-pass" class="input-field" placeholder="Contraseña">
         <button class="btn btn-primary" onclick="attemptLogin()">ENTRAR</button>
-        <p id="error-log" style="color:red; font-size:12px; text-align:center; margin:10px 0;"></p>
     </div>
 
     <div id="user-screen" class="hidden">
-        <div id="user-alerts"></div>
         <div style="display:flex; justify-content: space-between; align-items: center;">
             <h4 id="u-full-name" style="margin:0; color: var(--primary);"></h4>
-            <button onclick="logout()" style="border:none; background:none; color:var(--danger); cursor:pointer; font-weight:bold">Salir</button>
+            <button onclick="logout()" style="border:none; background:none; color:var(--danger); cursor:pointer;">Salir</button>
         </div>
-        <p style="font-size:0.9em">Días disponibles: <strong id="u-days">0</strong></p>
+        <p>Disponibles: <strong id="u-days">0</strong></p>
         <div style="text-align:center; margin: 10px 0;">
             <button onclick="changeMonth(-1)">◀</button>
-            <span id="month-name" style="font-weight:bold; margin: 0 10px; font-size:0.9em"></span>
+            <span id="month-name" style="font-weight:bold; margin: 0 10px;"></span>
             <button onclick="changeMonth(1)">▶</button>
         </div>
         <div class="grid" id="calendar-grid"></div>
-        <button class="btn btn-success" id="btn-solicitar" onclick="solicitar()">ENVIAR SOLICITUD</button>
+        <button class="btn btn-success" onclick="solicitar()">ENVIAR SOLICITUD</button>
     </div>
 
     <div id="admin-screen" class="hidden">
-        <div style="display:flex; justify-content: space-between; align-items: center;">
-            <h3 style="margin:0">Admin</h3>
-            <button onclick="logout()" style="border:none; background:none; color:var(--danger); cursor:pointer; font-weight:bold">Cerrar</button>
+        <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin:0">Panel Admin</h3>
+            <button onclick="logout()" style="color:var(--danger); cursor:pointer; background:none; border:none; font-weight:bold;">Cerrar</button>
         </div>
-        <div id="admin-user-list" style="margin-top:15px"></div>
-        <div id="admin-rev-box" class="hidden" style="margin-top:20px; border-top:2px solid #eee; padding-top:15px;">
-            <h4 id="rev-name" style="margin:0"></h4>
+
+        <div style="display:flex; margin-bottom: 15px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
+            <button class="tab-btn active" id="tab-list" onclick="switchTab('list')">Listado</button>
+            <button class="tab-btn" id="tab-config" onclick="switchTab('config')">Gestionar Plantilla</button>
+        </div>
+        
+        <div id="admin-tab-list">
+            <div id="admin-user-list"></div>
+        </div>
+
+        <div id="admin-tab-config" class="hidden">
+            <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
+                <h4 style="margin-top:0">Nuevo Operario</h4>
+                <input type="text" id="new-nombre" class="input-field" placeholder="Nombre Completo">
+                <input type="text" id="new-login" class="input-field" placeholder="Login (ej: jordi)">
+                <input type="text" id="new-pass" class="input-field" placeholder="Contraseña">
+                <button class="btn btn-primary" onclick="crearOperario()">DAR DE ALTA</button>
+            </div>
+            <div id="admin-delete-list"></div>
+        </div>
+        
+        <div id="admin-rev-box" class="hidden" style="margin-top:20px; border-top:2px solid #eee; padding-top:15px; background: #fffcf0; padding: 10px; border-radius: 8px;">
+            <h4 id="rev-name" style="margin:0; text-align:center"></h4>
+            <div style="text-align:center; margin: 10px 0;">
+                <button onclick="changeMonth(-1)">◀</button>
+                <span id="month-name-admin" style="font-weight:bold; margin: 0 10px;"></span>
+                <button onclick="changeMonth(1)">▶</button>
+            </div>
             <div id="rev-calendar" class="grid"></div>
-            <button class="btn btn-success" onclick="processSelection()">APROBAR</button>
-            <button class="btn btn-danger" onclick="rejectAll()">DENEGAR</button>
+            <button class="btn btn-primary" onclick="saveAdminChanges()">GUARDAR CALENDARIO</button>
+            <button class="btn" style="background:#ccc" onclick="document.getElementById('admin-rev-box').classList.add('hidden')">CANCELAR</button>
         </div>
     </div>
 </div>
@@ -78,94 +100,104 @@
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4bHB5dWNjdWp2dWNxamR0aXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzMDQ2NjcsImV4cCI6MjA4Mzg4MDY2N30.MoT6nGJRU1YJgeunxOxO2i-JGKE6KH0k4RecATvJH8w'; 
     const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    let curU = null; let revU = null; let users = []; let config = {};
-    let curM = new Date().getMonth(); let curY = 2026;
-    let temp = []; let adminChoice = [];
-    let ready = false;
+    let curU = null, revU = null, users = [], config = {};
+    let curM = new Date().getMonth(), curY = 2026;
+    let temp = [], adminEditAprobs = [], adminEditSols = [], ready = false;
 
     async function precarga() {
-        try {
-            const { data: opers, error: e1 } = await _sb.from('operarios').select('*');
-            const { data: cfg, error: e2 } = await _sb.from('config').select('*').single();
-            if(e1 || e2) throw (e1 || e2);
-            
-            // Asignar 26 días por defecto si no tienen valor
-            users = opers.map(u => ({...u, total_dias: u.total_dias || 26}));
-            config = cfg; 
-            ready = true;
-            document.getElementById('sync-status').innerText = '● En línea';
-            document.getElementById('sync-status').style.color = '#22c55e';
-        } catch (e) {
-            document.getElementById('error-log').innerText = "Error de conexión o RLS activo.";
-        }
+        const { data: opers } = await _sb.from('operarios').select('*');
+        const { data: cfg } = await _sb.from('config').select('*').single();
+        users = opers.map(u => ({
+            ...u, 
+            total_dias: u.total_dias || 26,
+            aprobados: u.aprobados || [],
+            solicitudes: u.solicitudes || []
+        }));
+        config = cfg; ready = true;
+        document.getElementById('sync-status').innerText = '● En línea';
+        document.getElementById('sync-status').style.color = '#22c55e';
     }
 
     async function attemptLogin() {
         if(!ready) await precarga();
         const uIn = document.getElementById('login-user').value.toLowerCase().trim();
         const pIn = document.getElementById('login-pass').value;
-
-        if(uIn === 'admin' && pIn === config.admin_pass) {
-            showScreen('admin-screen'); renderAdmin();
-        } else {
+        if(uIn === 'admin' && pIn === config.admin_pass) { showScreen('admin-screen'); renderAdmin(); }
+        else {
             curU = users.find(x => x.login === uIn && x.pass === pIn);
-            if(curU) {
-                showScreen('user-screen');
-                document.getElementById('u-full-name').innerText = curU.nombre;
-                checkMessages(); renderCal('calendar-grid', true);
-            } else { alert("Usuario o clave incorrecta"); }
+            if(curU) { showScreen('user-screen'); document.getElementById('u-full-name').innerText = curU.nombre; renderCal('calendar-grid', true); }
+            else alert("Error de acceso");
         }
+    }
+
+    function switchTab(tab) {
+        document.getElementById('admin-tab-list').classList.toggle('hidden', tab !== 'list');
+        document.getElementById('admin-tab-config').classList.toggle('hidden', tab !== 'config');
+        document.getElementById('tab-list').classList.toggle('active', tab === 'list');
+        document.getElementById('tab-config').classList.toggle('active', tab === 'config');
+        if(tab === 'config') renderDeleteList();
     }
 
     function renderAdmin() {
         const list = document.getElementById('admin-user-list');
         list.innerHTML = '';
         users.sort((a,b) => a.nombre.localeCompare(b.nombre)).forEach(u => {
-            const hasSols = u.solicitudes && u.solicitudes.length > 0;
-            list.innerHTML += `<div class="user-row" onclick="openRev(${u.id})"><span>${hasSols ? '<span class="badge">!</span>' : ''} ${u.nombre}</span><span style="font-size:0.8em">${u.aprobados?.length || 0}/${u.total_dias}d</span></div>`;
+            list.innerHTML += `
+                <div class="user-row">
+                    <div onclick="openRev(${u.id})" style="cursor:pointer; flex:1">
+                        ${u.solicitudes.length > 0 ? '🔴 ' : ''}<strong>${u.nombre}</strong>
+                        <div style="font-size:0.75em; color:gray">${u.aprobados.length} / ${u.total_dias} días</div>
+                    </div>
+                    <div>
+                        <button class="counter-btn" onclick="updateDays(${u.id}, -1)">-</button>
+                        <span style="margin:0 5px; font-weight:bold">${u.total_dias}</span>
+                        <button class="counter-btn" onclick="updateDays(${u.id}, 1)">+</button>
+                    </div>
+                </div>`;
         });
+    }
+
+    function renderDeleteList() {
+        const list = document.getElementById('admin-delete-list');
+        list.innerHTML = '<h4>Eliminar Operarios</h4>';
+        users.forEach(u => {
+            list.innerHTML += `
+                <div class="user-row">
+                    <span>${u.nombre}</span>
+                    <button class="btn-danger" style="padding:4px 8px; font-size:0.7em; width:auto; margin:0" onclick="eliminarOperario(${u.id}, '${u.nombre}')">ELIMINAR</button>
+                </div>`;
+        });
+    }
+
+    async function updateDays(id, delta) {
+        const u = users.find(x => x.id === id);
+        const nuevoVal = u.total_dias + delta;
+        const { error } = await _sb.from('operarios').update({ total_dias: nuevoVal }).eq('id', id);
+        if(!error) { await precarga(); renderAdmin(); }
+    }
+
+    async function crearOperario() {
+        const n = document.getElementById('new-nombre').value;
+        const l = document.getElementById('new-login').value.toLowerCase();
+        const p = document.getElementById('new-pass').value;
+        if(!n || !l || !p) return alert("Faltan datos");
+        const { error } = await _sb.from('operarios').insert([{ nombre: n, login: l, pass: p, total_dias: 26, aprobados: [], solicitudes: [] }]);
+        if(!error) { alert("Alta correcta"); precarga().then(() => { renderAdmin(); renderDeleteList(); }); }
+    }
+
+    async function eliminarOperario(id, nombre) {
+        if(!confirm(`¿Seguro que quieres eliminar a ${nombre}?`)) return;
+        const { error } = await _sb.from('operarios').delete().eq('id', id);
+        if(!error) { await precarga(); renderAdmin(); renderDeleteList(); }
     }
 
     function openRev(id) {
         revU = users.find(u => u.id === id); 
-        adminChoice = [...(revU.solicitudes || [])];
+        adminEditAprobs = [...revU.aprobados];
+        adminEditSols = [...revU.solicitudes];
         document.getElementById('admin-rev-box').classList.remove('hidden');
         document.getElementById('rev-name').innerText = revU.nombre;
         renderCal('rev-calendar', false);
-    }
-
-    async function processSelection() {
-        const nuevosAprobs = [...(revU.aprobados || []), ...adminChoice];
-        await _sb.from('operarios').update({ aprobados: nuevosAprobs, solicitudes: [], mensaje: `✅ Aprobado: [${adminChoice.length}] días.` }).eq('id', revU.id);
-        precarga().then(() => renderAdmin());
-        document.getElementById('admin-rev-box').classList.add('hidden');
-    }
-
-    async function rejectAll() {
-        await _sb.from('operarios').update({ solicitudes: [], mensaje: `❌ Solicitud rechazada.` }).eq('id', revU.id);
-        precarga().then(() => renderAdmin());
-        document.getElementById('admin-rev-box').classList.add('hidden');
-    }
-
-    function renderCal(gid, isOp) {
-        const g = document.getElementById(gid); g.innerHTML = '';
-        const user = isOp ? curU : revU;
-        document.getElementById('month-name').innerText = `${new Intl.DateTimeFormat('es',{month:'long'}).format(new Date(curY, curM))} ${curY}`;
-        ['L','M','X','J','V','S','D'].forEach(h => g.innerHTML += `<div class="day header">${h}</div>`);
-        let first = new Date(curY, curM, 1).getDay();
-        let off = (first === 0) ? 6 : first - 1;
-        for(let i=0; i<off; i++) g.innerHTML += '<div></div>';
-        for(let d=1; d<=new Date(curY, curM+1, 0).getDate(); d++) {
-            let dt = `${curY}-${String(curM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-            let isD = (new Date(curY, curM, d).getDay() % 6 === 0) || (config.festivos || []).includes(dt);
-            let cls = 'day';
-            if(isD) cls += ' disabled';
-            else if(user.aprobados?.includes(dt)) cls += ' approved';
-            else if(isOp && (user.solicitudes?.includes(dt) || temp.includes(dt))) cls += ' selected';
-            else if(!isOp && user.solicitudes?.includes(dt)) cls += adminChoice.includes(dt) ? ' selected' : '';
-            g.innerHTML += `<div class="${cls}" onclick="clDay('${dt}',${isD},${isOp})">${d}</div>`;
-        }
-        if(isOp) document.getElementById('u-days').innerText = user.total_dias - (user.aprobados?.length || 0);
     }
 
     function clDay(dt, isD, isOp) {
@@ -173,59 +205,61 @@
         if(isOp) {
             let i = temp.indexOf(dt);
             if(i > -1) temp.splice(i, 1);
-            else if(((curU.aprobados?.length || 0) + (curU.solicitudes?.length || 0) + temp.length) < curU.total_dias) temp.push(dt);
+            else if((curU.aprobados.length + curU.solicitudes.length + temp.length) < curU.total_dias) temp.push(dt);
             renderCal('calendar-grid', true);
         } else {
-            if(revU.solicitudes?.includes(dt)) {
-                let i = adminChoice.indexOf(dt);
-                if(i > -1) adminChoice.splice(i, 1); else adminChoice.push(dt);
-                renderCal('rev-calendar', false);
+            if(adminEditAprobs.includes(dt)) {
+                adminEditAprobs = adminEditAprobs.filter(d => d !== dt);
+            } else if(adminEditSols.includes(dt)) {
+                adminEditSols = adminEditSols.filter(d => d !== dt);
+                adminEditAprobs.push(dt);
+            } else {
+                if(adminEditAprobs.length < revU.total_dias) adminEditAprobs.push(dt);
             }
+            renderCal('rev-calendar', false);
         }
+    }
+
+    async function saveAdminChanges() {
+        await _sb.from('operarios').update({ aprobados: adminEditAprobs, solicitudes: adminEditSols }).eq('id', revU.id);
+        alert("Guardado"); await precarga(); renderAdmin(); document.getElementById('admin-rev-box').classList.add('hidden');
+    }
+
+    function renderCal(gid, isOp) {
+        const g = document.getElementById(gid); g.innerHTML = '';
+        const user = isOp ? curU : revU;
+        const targetTitle = isOp ? 'month-name' : 'month-name-admin';
+        document.getElementById(targetTitle).innerText = `${new Intl.DateTimeFormat('es',{month:'long'}).format(new Date(curY, curM))} ${curY}`;
+        ['L','M','X','J','V','S','D'].forEach(h => g.innerHTML += `<div class="day header">${h}</div>`);
+        let off = (new Date(curY, curM, 1).getDay() || 7) - 1;
+        for(let i=0; i<off; i++) g.innerHTML += '<div></div>';
+        for(let d=1; d<=new Date(curY, curM+1, 0).getDate(); d++) {
+            let dt = `${curY}-${String(curM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            let isD = (new Date(curY, curM, d).getDay() % 6 === 0) || (config.festivos || []).includes(dt);
+            let cls = 'day';
+            if(isD) cls += ' disabled';
+            else if(isOp) {
+                if(user.aprobados.includes(dt)) cls += ' approved';
+                else if(user.solicitudes.includes(dt) || temp.includes(dt)) cls += ' selected';
+            } else {
+                if(adminEditAprobs.includes(dt)) cls += ' approved';
+                else if(adminEditSols.includes(dt)) cls += ' selected';
+            }
+            g.innerHTML += `<div class="${cls}" onclick="clDay('${dt}',${isD},${isOp})">${d}</div>`;
+        }
+        if(isOp) document.getElementById('u-days').innerText = user.total_dias - user.aprobados.length;
     }
 
     async function solicitar() {
         if(temp.length === 0) return;
-        const nuevasSols = [...(curU.solicitudes || []), ...temp];
-        await _sb.from('operarios').update({ solicitudes: nuevasSols }).eq('id', curU.id);
-        alert("Enviado");
-        temp = [];
-        precarga().then(() => renderCal('calendar-grid', true));
+        await _sb.from('operarios').update({ solicitudes: [...curU.solicitudes, ...temp] }).eq('id', curU.id);
+        alert("Enviado"); temp = []; await precarga(); renderCal('calendar-grid', true);
     }
 
-    function checkMessages() {
-        const area = document.getElementById('user-alerts');
-        if(curU.mensaje) {
-            const type = curU.mensaje.includes('✅') ? 'success' : 'danger';
-            area.innerHTML = `<div class="alert-box alert-${type}">${curU.mensaje} <button onclick="clearMsg()" style="float:right; border:none; background:none; cursor:pointer">✕</button></div>`;
-        }
-    }
-    async function clearMsg() { 
-        await _sb.from('operarios').update({ mensaje: null }).eq('id', curU.id); 
-        curU.mensaje = null;
-        document.getElementById('user-alerts').innerHTML = '';
-    }
-    
-    // BOTÓN SALIR REPARADO: Limpia variables y vuelve al login sin recargar
-    function logout() { 
-        curU = null; 
-        revU = null; 
-        temp = [];
-        document.getElementById('login-user').value = '';
-        document.getElementById('login-pass').value = '';
-        showScreen('login-screen'); 
-    }
+    function logout() { curU = null; revU = null; temp = []; showScreen('login-screen'); }
+    function showScreen(id) { document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden')); document.getElementById(id).classList.remove('hidden'); }
+    function changeMonth(n) { curM += n; if(curM > 11){curM=0;curY++;} if(curM < 0){curM=11;curY--;} renderCal(curU ? 'calendar-grid' : 'rev-calendar', !!curU); }
 
-    function showScreen(id) { 
-        document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden')); 
-        document.getElementById(id).classList.remove('hidden'); 
-    }
-    
-    function changeMonth(n) { 
-        curM += n; if(curM > 11){curM=0;curY++;} if(curM < 0){curM=11;curY--;} 
-        renderCal(curU ? 'calendar-grid' : 'rev-calendar', !!curU); 
-    }
-    
     precarga();
 </script>
 </body>

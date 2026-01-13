@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vacaciones - Login Rápido</title>
+    <title>Vacaciones Operarios - Cloud</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --primary: #2563eb; --danger: #ef4444; --success: #22c55e; --text: #1e293b; --bg: #f8fafc; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding: 10px; margin: 0; }
@@ -25,15 +26,17 @@
         .hidden { display: none; }
         .user-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #f1f5f9; }
         .badge { background: var(--danger); color: white; padding: 2px 7px; border-radius: 50%; font-size: 0.7em; margin-right: 5px; }
+        .loading { text-align: center; color: var(--primary); font-weight: bold; padding: 20px; }
     </style>
 </head>
 <body>
 
 <div class="container">
+    <div id="loading-overlay" class="hidden loading">Sincronizando con la nube...</div>
+
     <div id="login-screen">
         <h2 style="text-align:center">📅 Acceso Vacaciones</h2>
-        <p style="text-align:center; font-size:0.9em; color:#64748b">Introduce tu nombre de pila</p>
-        <input type="text" id="login-user" class="input-field" placeholder="jordi, raul, dani...">
+        <input type="text" id="login-user" class="input-field" placeholder="Nombre de pila (jordi, raul...)">
         <input type="password" id="login-pass" class="input-field" placeholder="Contraseña">
         <button class="btn btn-primary" onclick="attemptLogin()">INICIAR SESIÓN</button>
     </div>
@@ -44,14 +47,14 @@
             <h3 id="u-full-name" style="margin:0; font-size: 1.1em; color: var(--primary);"></h3>
             <button class="btn btn-danger" style="width:auto; margin:0; padding: 5px 15px;" onclick="logout()">Salir</button>
         </div>
-        <p style="margin-top:5px">Días disponibles: <strong id="u-days">0</strong></p>
+        <p>Días disponibles: <strong id="u-days">0</strong></p>
         <div style="text-align:center; background: #f8fafc; padding: 10px; border-radius: 8px;">
             <button onclick="changeMonth(-1)">◀</button>
             <span id="month-name" style="font-weight:bold; margin: 0 10px;"></span>
             <button onclick="changeMonth(1)">▶</button>
         </div>
         <div class="grid" id="calendar-grid"></div>
-        <button class="btn btn-success" onclick="solicitar()">SOLICITAR ESTOS DÍAS</button>
+        <button class="btn btn-success" id="btn-solicitar" onclick="solicitar()">SOLICITAR DÍAS</button>
         <button class="btn" style="background:#f1f5f9" onclick="showChangePass()">Cambiar Contraseña</button>
     </div>
 
@@ -80,84 +83,47 @@
 </div>
 
 <script>
-    // Configuración de usuarios: [Nombre Pila (Login), Nombre Completo (Visualización)]
-    const staffData = [
-        ["jordi", "AGUSTI CASANOVAS, JORDI"],
-        ["xavi", "DIAGO BERTRAN, XAVI"],
-        ["alfonso", "GIMENEZ SANCHEZ, ALFONSO"],
-        ["abel", "GONZALEZ CABALLERO, ABEL"],
-        ["raul", "LÓPEZ GÓMEZ, RAUL"],
-        ["humberto", "LOZANO CORTEZ, HUMBERTO"],
-        ["jose", "MARTÍNEZ GARCIA, JOSÉ ALFONSO"],
-        ["daniel", "MARTINEZ HERNANDEZ, DANIEL"],
-        ["dixon", "MEDINA SIERRA, DIXON"],
-        ["orlando", "MEDINA SIERRA, ORLANDO AMPARO"],
-        ["thierno", "MENDY, THIERNO AMADOU"],
-        ["francisco", "MUÑOZ SERRANO, FRANCISCO"],
-        ["arkadi", "OHANYAN, ARKADI"],
-        ["oscar", "REVOLLO CASTELLÓN, ÓSCAR"],
-        ["dani", "RIVERO MUÑOZ, DANIEL"],
-        ["jesus", "ROLDAN LOPEZ, JESUS"],
-        ["juan", "ROMERO TORRES JUAN"],
-        ["pol", "VILASECA GUSTEMS, POL"]
-    ];
+    // Configuración de Supabase
+    const SUPABASE_URL = 'https://rxlpyuccujvucqjdtixt.supabase.co';
+    const SUPABASE_KEY = 'TU_KEY_ANON_AQUÍ'; // *** ¡DEBES PEGAR TU KEY ANON AQUÍ! ***
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    let db = JSON.parse(localStorage.getItem('vaca_db_v5')) || {
-        admin: { pass: "1234" },
-        users: staffData.sort((a,b) => a[1].localeCompare(b[1])).map((s, i) => ({ 
-            id: i, login: s[0], nombre: s[1], pass: "1234", total: 22, sols: [], aprobs: [], msg: null 
-        })),
-        festivos: ["2026-01-01", "2026-01-06", "2026-05-01", "2026-12-25"]
-    };
-
-    let curU = null; let revU = null;
+    let curU = null; let revU = null; let users = []; let config = {};
     let curM = new Date().getMonth(); let curY = 2026;
     let temp = []; let adminChoice = [];
 
-    function save() { localStorage.setItem('vaca_db_v5', JSON.stringify(db)); }
+    async function loadData() {
+        showLoading(true);
+        const { data: opers } = await _supabase.from('operarios').select('*');
+        const { data: cfg } = await _supabase.from('config').select('*').single();
+        users = opers.sort((a,b) => a.nombre.localeCompare(b.nombre));
+        config = cfg;
+        showLoading(false);
+    }
 
-    function logout() { curU = null; revU = null; temp = []; adminChoice = []; showScreen('login-screen'); }
+    async function attemptLogin() {
+        await loadData();
+        const uIn = document.getElementById('login-user').value.toLowerCase().trim();
+        const pIn = document.getElementById('login-pass').value;
 
-    function attemptLogin() {
-        const u = document.getElementById('login-user').value.toLowerCase().trim();
-        const p = document.getElementById('login-pass').value;
-        
-        if(u === 'admin' && p === db.admin.pass) {
+        if(uIn === 'admin' && pIn === config.admin_pass) {
             showScreen('admin-screen'); renderAdmin();
         } else {
-            const user = db.users.find(x => x.login === u && x.pass === p);
-            if(user) {
-                curU = user; showScreen('user-screen');
+            curU = users.find(x => x.login === uIn && x.pass === pIn);
+            if(curU) {
+                showScreen('user-screen');
                 document.getElementById('u-full-name').innerText = curU.nombre;
                 checkMessages(); renderCal('calendar-grid', true);
-            } else { alert("Nombre o contraseña incorrectos"); }
+            } else { alert("Datos incorrectos"); }
         }
     }
-
-    function checkMessages() {
-        const area = document.getElementById('user-alerts');
-        area.innerHTML = '';
-        if(curU.msg) {
-            const type = curU.msg.includes('Aprobada') ? 'success' : 'danger';
-            area.innerHTML = `<div class="alert-box alert-${type}">${curU.msg} <button onclick="clearMsg()" style="float:right; border:none; background:none; cursor:pointer">✕</button></div>`;
-        }
-    }
-
-    function clearMsg() { curU.msg = null; save(); checkMessages(); }
 
     function renderAdmin() {
         const list = document.getElementById('admin-user-list');
         list.innerHTML = '<h3>Lista de Personal</h3>';
-        db.users.forEach(u => {
-            list.innerHTML += `<div class="user-row"><span onclick="openRev(${u.id})" style="cursor:pointer; font-size:0.9em">${u.sols.length > 0 ? '<span class="badge">!</span>' : ''} ${u.nombre}</span><input type="number" value="${u.total}" style="width:40px" onchange="updTotal(${u.id}, this.value)"></div>`;
+        users.forEach(u => {
+            list.innerHTML += `<div class="user-row"><span onclick="openRev(${u.id})" style="cursor:pointer; font-size:0.9em">${u.solicitudes?.length > 0 ? '<span class="badge">!</span>' : ''} ${u.nombre}</span><input type="number" value="${u.total_dias}" style="width:40px" onchange="updTotal(${u.id}, this.value)"></div>`;
         });
-    }
-
-    function openRev(id) {
-        revU = db.users.find(u => u.id === id); adminChoice = [...revU.sols];
-        document.getElementById('admin-rev-box').classList.remove('hidden');
-        document.getElementById('rev-name').innerText = "Revisando: " + revU.nombre;
-        renderCal('rev-calendar', false);
     }
 
     function renderCal(gid, isOp) {
@@ -168,17 +134,18 @@
         let first = new Date(curY, curM, 1).getDay();
         let off = first === 0 ? 6 : first - 1;
         for(let i=0; i<off; i++) g.innerHTML += '<div></div>';
+        
         for(let d=1; d<=new Date(curY, curM+1, 0).getDate(); d++) {
             let dt = `${curY}-${String(curM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-            let isD = (new Date(curY, curM, d).getDay() % 6 === 0) || db.festivos.includes(dt);
+            let isD = (new Date(curY, curM, d).getDay() % 6 === 0) || (config.festivos || []).includes(dt);
             let cls = 'day';
             if(isD) cls += ' disabled';
-            else if(user.aprobs.includes(dt)) cls += ' approved';
-            else if(isOp && (user.sols.includes(dt) || temp.includes(dt))) cls += ' selected';
-            else if(!isOp && user.sols.includes(dt)) cls += adminChoice.includes(dt) ? ' selected' : '';
+            else if(user.aprobados?.includes(dt)) cls += ' approved';
+            else if(isOp && (user.solicitudes?.includes(dt) || temp.includes(dt))) cls += ' selected';
+            else if(!isOp && user.solicitudes?.includes(dt)) cls += adminChoice.includes(dt) ? ' selected' : '';
             g.innerHTML += `<div class="${cls}" onclick="clDay('${dt}',${isD},${isOp})">${d}</div>`;
         }
-        if(isOp) document.getElementById('u-days').innerText = user.total - user.aprobs.length;
+        if(isOp) document.getElementById('u-days').innerText = user.total_dias - (user.aprobados?.length || 0);
     }
 
     function clDay(dt, isD, isOp) {
@@ -186,10 +153,10 @@
         if(isOp) {
             let i = temp.indexOf(dt);
             if(i > -1) temp.splice(i, 1);
-            else if((curU.aprobs.length + curU.sols.length + temp.length) < curU.total) temp.push(dt);
+            else if(((curU.aprobados?.length || 0) + (curU.solicitudes?.length || 0) + temp.length) < curU.total_dias) temp.push(dt);
             renderCal('calendar-grid', true);
         } else {
-            if(revU.sols.includes(dt)) {
+            if(revU.solicitudes?.includes(dt)) {
                 let i = adminChoice.indexOf(dt);
                 if(i > -1) adminChoice.splice(i, 1); else adminChoice.push(dt);
                 renderCal('rev-calendar', false);
@@ -197,31 +164,73 @@
         }
     }
 
-    function processSelection() {
-        if(adminChoice.length === 0) return alert("Selecciona días.");
-        revU.aprobs.push(...adminChoice);
-        revU.msg = `✅ Solicitud Aprobada para [${adminChoice.join(', ')}].`;
-        revU.sols = []; save(); renderAdmin(); document.getElementById('admin-rev-box').classList.add('hidden');
+    async function solicitar() {
+        if(temp.length === 0) return;
+        showLoading(true);
+        const nuevasSols = [...(curU.solicitudes || []), ...temp];
+        const { error } = await _supabase.from('operarios').update({ solicitudes: nuevasSols }).eq('id', curU.id);
+        if(!error) { alert("Solicitud enviada"); temp = []; await attemptLogin(); }
+        showLoading(false);
     }
 
-    function rejectAll() {
-        if(confirm("¿Denegar todo?")) {
-            revU.msg = `❌ Solicitud Denegada.`;
-            revU.sols = []; save(); renderAdmin(); document.getElementById('admin-rev-box').classList.add('hidden');
+    async function processSelection() {
+        showLoading(true);
+        const nuevosAprobs = [...(revU.aprobados || []), ...adminChoice];
+        await _supabase.from('operarios').update({ 
+            aprobados: nuevosAprobs, 
+            solicitudes: [], 
+            mensaje: `✅ Aprobado: [${adminChoice.join(', ')}]` 
+        }).eq('id', revU.id);
+        adminChoice = []; await loadData(); renderAdmin();
+        document.getElementById('admin-rev-box').classList.add('hidden');
+        showLoading(false);
+    }
+
+    async function rejectAll() {
+        if(!confirm("¿Denegar todo?")) return;
+        showLoading(true);
+        await _supabase.from('operarios').update({ 
+            solicitudes: [], 
+            mensaje: `❌ Solicitud denegada.` 
+        }).eq('id', revU.id);
+        await loadData(); renderAdmin();
+        document.getElementById('admin-rev-box').classList.add('hidden');
+        showLoading(false);
+    }
+
+    async function updTotal(id, val) {
+        await _supabase.from('operarios').update({ total_dias: parseInt(val) }).eq('id', id);
+    }
+
+    async function saveNewPass() {
+        const p = document.getElementById('new-pass').value;
+        if(curU) await _supabase.from('operarios').update({ pass: p }).eq('id', curU.id);
+        else await _supabase.from('config').update({ admin_pass: p }).eq('id', 1);
+        alert("Contraseña actualizada"); hideChangePass();
+    }
+
+    function checkMessages() {
+        const area = document.getElementById('user-alerts'); area.innerHTML = '';
+        if(curU.mensaje) {
+            const type = curU.mensaje.includes('✅') ? 'success' : 'danger';
+            area.innerHTML = `<div class="alert-box alert-${type}">${curU.mensaje} <button onclick="clearMsg()" style="float:right; border:none; background:none; cursor:pointer">✕</button></div>`;
         }
     }
+    async function clearMsg() { await _supabase.from('operarios').update({ mensaje: null }).eq('id', curU.id); curU.mensaje = null; checkMessages(); }
 
-    function solicitar() {
-        if(temp.length === 0) return;
-        if(confirm("¿Enviar solicitud?")) { curU.sols.push(...temp); temp = []; save(); renderCal('calendar-grid', true); }
+    function openRev(id) {
+        revU = users.find(u => u.id === id); adminChoice = [...(revU.solicitudes || [])];
+        document.getElementById('admin-rev-box').classList.remove('hidden');
+        document.getElementById('rev-name').innerText = "Revisando: " + revU.nombre;
+        renderCal('rev-calendar', false);
     }
 
-    function updTotal(id, val) { db.users.find(u => u.id === id).total = parseInt(val); save(); }
+    function showLoading(s) { document.getElementById('loading-overlay').classList.toggle('hidden', !s); }
+    function logout() { curU = null; revU = null; showScreen('login-screen'); }
     function showScreen(id) { document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden')); document.getElementById(id).classList.remove('hidden'); }
     function changeMonth(n) { curM += n; if(curM > 11){curM=0;curY++;} if(curM < 0){curM=11;curY--;} renderCal(curU ? 'calendar-grid' : 'rev-calendar', !!curU); }
     function showChangePass() { document.getElementById('change-pass-screen').classList.remove('hidden'); }
     function hideChangePass() { document.getElementById('change-pass-screen').classList.add('hidden'); }
-    function saveNewPass() { const p = document.getElementById('new-pass').value; if(curU) curU.pass = p; else db.admin.pass = p; save(); alert("Cambiado"); hideChangePass(); }
 </script>
 </body>
 </html>

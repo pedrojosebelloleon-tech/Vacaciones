@@ -3,16 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vacaciones Pro - Master Admin</title>
+    <title>Vacaciones Pro - Master Admin Plus</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root { --primary: #2563eb; --danger: #ef4444; --success: #22c55e; --text: #1e293b; --bg: #f8fafc; }
+        :root { --primary: #2563eb; --danger: #ef4444; --success: #22c55e; --text: #1e293b; --bg: #f8fafc; --holiday: #475569; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding: 10px; margin: 0; }
         .container { max-width: 500px; margin: 10px auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
         .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 10px; }
         .day { aspect-ratio: 1; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 6px; font-size: 0.85em; }
         .day.header { font-weight: bold; border: none; color: #64748b; }
-        .day.disabled { background: #f1f5f9; cursor: not-allowed; color: #cbd5e1; }
+        .day.disabled { background: #cbd5e1; cursor: not-allowed; color: white; }
+        .day.holiday-block { background: var(--holiday); color: white; }
         .day.selected { background: var(--danger); color: white; }
         .day.approved { background: var(--success); color: white; }
         .btn { padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; margin-top: 8px; }
@@ -23,7 +24,7 @@
         .hidden { display: none; }
         .user-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #f1f5f9; }
         .counter-btn { background: #e2e8f0; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .tab-btn { flex: 1; padding: 10px; border: none; background: #f1f5f9; cursor: pointer; font-weight: bold; }
+        .tab-btn { flex: 1; padding: 10px; border: none; background: #f1f5f9; cursor: pointer; font-weight: bold; font-size: 0.8em; }
         .tab-btn.active { background: var(--primary); color: white; }
         #sync-status { position: fixed; top: 10px; right: 10px; font-size: 10px; font-weight: bold; }
     </style>
@@ -34,7 +35,7 @@
 
 <div class="container">
     <div id="login-screen">
-        <h2 style="text-align:center">📅 Vacaciones 2026</h2>
+        <h2 style="text-align:center">📅 Gestión 2026</h2>
         <input type="text" id="login-user" class="input-field" placeholder="Usuario">
         <input type="password" id="login-pass" class="input-field" placeholder="Contraseña">
         <button class="btn btn-primary" onclick="attemptLogin()">ENTRAR</button>
@@ -57,31 +58,43 @@
 
     <div id="admin-screen" class="hidden">
         <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <h3 style="margin:0">Panel Admin</h3>
+            <h3 style="margin:0">Admin</h3>
             <button onclick="logout()" style="color:var(--danger); cursor:pointer; background:none; border:none; font-weight:bold;">Cerrar</button>
         </div>
 
         <div style="display:flex; margin-bottom: 15px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
             <button class="tab-btn active" id="tab-list" onclick="switchTab('list')">Listado</button>
-            <button class="tab-btn" id="tab-config" onclick="switchTab('config')">Gestionar Plantilla</button>
+            <button class="tab-btn" id="tab-fest" onclick="switchTab('fest')">Festivos</button>
+            <button class="tab-btn" id="tab-config" onclick="switchTab('config')">Plantilla</button>
         </div>
         
         <div id="admin-tab-list">
             <div id="admin-user-list"></div>
         </div>
 
+        <div id="admin-tab-fest" class="hidden">
+            <p style="font-size:0.8em; color:gray; text-align:center;">Pulsa los días para bloquearlos como festivos.</p>
+            <div style="text-align:center; margin: 10px 0;">
+                <button onclick="changeMonth(-1)">◀</button>
+                <span id="month-name-fest" style="font-weight:bold; margin: 0 10px;"></span>
+                <button onclick="changeMonth(1)">▶</button>
+            </div>
+            <div id="fest-calendar" class="grid"></div>
+            <button class="btn btn-primary" onclick="guardarFestivos()">GUARDAR FESTIVOS</button>
+        </div>
+
         <div id="admin-tab-config" class="hidden">
-            <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
-                <h4 style="margin-top:0">Nuevo Operario</h4>
-                <input type="text" id="new-nombre" class="input-field" placeholder="Nombre Completo">
-                <input type="text" id="new-login" class="input-field" placeholder="Login (ej: jordi)">
+            <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom:15px">
+                <h4 style="margin:0">Nuevo Operario</h4>
+                <input type="text" id="new-nombre" class="input-field" placeholder="Nombre">
+                <input type="text" id="new-login" class="input-field" placeholder="Login">
                 <input type="text" id="new-pass" class="input-field" placeholder="Contraseña">
                 <button class="btn btn-primary" onclick="crearOperario()">DAR DE ALTA</button>
             </div>
             <div id="admin-delete-list"></div>
         </div>
         
-        <div id="admin-rev-box" class="hidden" style="margin-top:20px; border-top:2px solid #eee; padding-top:15px; background: #fffcf0; padding: 10px; border-radius: 8px;">
+        <div id="admin-rev-box" class="hidden" style="margin-top:20px; border-top:2px solid #eee; padding: 15px; background: #fffcf0; border-radius: 8px;">
             <h4 id="rev-name" style="margin:0; text-align:center"></h4>
             <div style="text-align:center; margin: 10px 0;">
                 <button onclick="changeMonth(-1)">◀</button>
@@ -90,7 +103,7 @@
             </div>
             <div id="rev-calendar" class="grid"></div>
             <button class="btn btn-primary" onclick="saveAdminChanges()">GUARDAR CALENDARIO</button>
-            <button class="btn" style="background:#ccc" onclick="document.getElementById('admin-rev-box').classList.add('hidden')">CANCELAR</button>
+            <button class="btn" style="background:#ccc" onclick="document.getElementById('admin-rev-box').classList.add('hidden')">VOLVER</button>
         </div>
     </div>
 </div>
@@ -100,20 +113,16 @@
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4bHB5dWNjdWp2dWNxamR0aXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzMDQ2NjcsImV4cCI6MjA4Mzg4MDY2N30.MoT6nGJRU1YJgeunxOxO2i-JGKE6KH0k4RecATvJH8w'; 
     const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    let curU = null, revU = null, users = [], config = {};
+    let curU = null, revU = null, users = [], config = {}, tempFestivos = [];
     let curM = new Date().getMonth(), curY = 2026;
     let temp = [], adminEditAprobs = [], adminEditSols = [], ready = false;
 
     async function precarga() {
         const { data: opers } = await _sb.from('operarios').select('*');
         const { data: cfg } = await _sb.from('config').select('*').single();
-        users = opers.map(u => ({
-            ...u, 
-            total_dias: u.total_dias || 26,
-            aprobados: u.aprobados || [],
-            solicitudes: u.solicitudes || []
-        }));
-        config = cfg; ready = true;
+        users = opers.map(u => ({...u, total_dias: u.total_dias || 26, aprobados: u.aprobados || [], solicitudes: u.solicitudes || []}));
+        config = cfg; tempFestivos = [...(cfg.festivos || [])];
+        ready = true;
         document.getElementById('sync-status').innerText = '● En línea';
         document.getElementById('sync-status').style.color = '#22c55e';
     }
@@ -131,10 +140,11 @@
     }
 
     function switchTab(tab) {
-        document.getElementById('admin-tab-list').classList.toggle('hidden', tab !== 'list');
-        document.getElementById('admin-tab-config').classList.toggle('hidden', tab !== 'config');
-        document.getElementById('tab-list').classList.toggle('active', tab === 'list');
-        document.getElementById('tab-config').classList.toggle('active', tab === 'config');
+        document.querySelectorAll('#admin-screen > div[id^="admin-tab"]').forEach(d => d.classList.add('hidden'));
+        document.getElementById('admin-tab-' + tab).classList.remove('hidden');
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('tab-' + tab).classList.add('active');
+        if(tab === 'fest') renderCal('fest-calendar', false, true);
         if(tab === 'config') renderDeleteList();
     }
 
@@ -142,65 +152,34 @@
         const list = document.getElementById('admin-user-list');
         list.innerHTML = '';
         users.sort((a,b) => a.nombre.localeCompare(b.nombre)).forEach(u => {
-            list.innerHTML += `
-                <div class="user-row">
-                    <div onclick="openRev(${u.id})" style="cursor:pointer; flex:1">
-                        ${u.solicitudes.length > 0 ? '🔴 ' : ''}<strong>${u.nombre}</strong>
-                        <div style="font-size:0.75em; color:gray">${u.aprobados.length} / ${u.total_dias} días</div>
-                    </div>
-                    <div>
-                        <button class="counter-btn" onclick="updateDays(${u.id}, -1)">-</button>
-                        <span style="margin:0 5px; font-weight:bold">${u.total_dias}</span>
-                        <button class="counter-btn" onclick="updateDays(${u.id}, 1)">+</button>
-                    </div>
-                </div>`;
+            list.innerHTML += `<div class="user-row"><div onclick="openRev(${u.id})" style="cursor:pointer; flex:1">${u.solicitudes.length > 0 ? '🔴 ' : ''}<strong>${u.nombre}</strong><div style="font-size:0.75em; color:gray">${u.aprobados.length}/${u.total_dias}d</div></div><div><button class="counter-btn" onclick="updateDays(${u.id}, -1)">-</button><span style="margin:0 5px; font-weight:bold">${u.total_dias}</span><button class="counter-btn" onclick="updateDays(${u.id}, 1)">+</button></div></div>`;
         });
     }
 
     function renderDeleteList() {
         const list = document.getElementById('admin-delete-list');
-        list.innerHTML = '<h4>Eliminar Operarios</h4>';
-        users.forEach(u => {
-            list.innerHTML += `
-                <div class="user-row">
-                    <span>${u.nombre}</span>
-                    <button class="btn-danger" style="padding:4px 8px; font-size:0.7em; width:auto; margin:0" onclick="eliminarOperario(${u.id}, '${u.nombre}')">ELIMINAR</button>
-                </div>`;
-        });
+        list.innerHTML = '<h4>Bajas</h4>';
+        users.forEach(u => { list.innerHTML += `<div class="user-row"><span>${u.nombre}</span><button class="btn-danger" style="padding:4px 8px; font-size:0.7em; width:auto; margin:0" onclick="eliminarOperario(${u.id}, '${u.nombre}')">ELIMINAR</button></div>`; });
     }
 
     async function updateDays(id, delta) {
         const u = users.find(x => x.id === id);
-        const nuevoVal = u.total_dias + delta;
-        const { error } = await _sb.from('operarios').update({ total_dias: nuevoVal }).eq('id', id);
+        const { error } = await _sb.from('operarios').update({ total_dias: u.total_dias + delta }).eq('id', id);
         if(!error) { await precarga(); renderAdmin(); }
     }
 
-    async function crearOperario() {
-        const n = document.getElementById('new-nombre').value;
-        const l = document.getElementById('new-login').value.toLowerCase();
-        const p = document.getElementById('new-pass').value;
-        if(!n || !l || !p) return alert("Faltan datos");
-        const { error } = await _sb.from('operarios').insert([{ nombre: n, login: l, pass: p, total_dias: 26, aprobados: [], solicitudes: [] }]);
-        if(!error) { alert("Alta correcta"); precarga().then(() => { renderAdmin(); renderDeleteList(); }); }
+    async function guardarFestivos() {
+        const { error } = await _sb.from('config').update({ festivos: tempFestivos }).eq('id', config.id);
+        if(!error) { alert("Festivos actualizados"); await precarga(); }
     }
 
-    async function eliminarOperario(id, nombre) {
-        if(!confirm(`¿Seguro que quieres eliminar a ${nombre}?`)) return;
-        const { error } = await _sb.from('operarios').delete().eq('id', id);
-        if(!error) { await precarga(); renderAdmin(); renderDeleteList(); }
-    }
-
-    function openRev(id) {
-        revU = users.find(u => u.id === id); 
-        adminEditAprobs = [...revU.aprobados];
-        adminEditSols = [...revU.solicitudes];
-        document.getElementById('admin-rev-box').classList.remove('hidden');
-        document.getElementById('rev-name').innerText = revU.nombre;
-        renderCal('rev-calendar', false);
-    }
-
-    function clDay(dt, isD, isOp) {
+    function clDay(dt, isD, isOp, isFestTab = false) {
+        if(isFestTab) {
+            if(tempFestivos.includes(dt)) tempFestivos = tempFestivos.filter(f => f !== dt);
+            else tempFestivos.push(dt);
+            renderCal('fest-calendar', false, true);
+            return;
+        }
         if(isD) return;
         if(isOp) {
             let i = temp.indexOf(dt);
@@ -208,46 +187,64 @@
             else if((curU.aprobados.length + curU.solicitudes.length + temp.length) < curU.total_dias) temp.push(dt);
             renderCal('calendar-grid', true);
         } else {
-            if(adminEditAprobs.includes(dt)) {
-                adminEditAprobs = adminEditAprobs.filter(d => d !== dt);
-            } else if(adminEditSols.includes(dt)) {
-                adminEditSols = adminEditSols.filter(d => d !== dt);
-                adminEditAprobs.push(dt);
-            } else {
-                if(adminEditAprobs.length < revU.total_dias) adminEditAprobs.push(dt);
-            }
+            if(adminEditAprobs.includes(dt)) adminEditAprobs = adminEditAprobs.filter(d => d !== dt);
+            else if(adminEditSols.includes(dt)) { adminEditSols = adminEditSols.filter(d => d !== dt); adminEditAprobs.push(dt); }
+            else { if(adminEditAprobs.length < revU.total_dias) adminEditAprobs.push(dt); }
             renderCal('rev-calendar', false);
         }
     }
 
-    async function saveAdminChanges() {
-        await _sb.from('operarios').update({ aprobados: adminEditAprobs, solicitudes: adminEditSols }).eq('id', revU.id);
-        alert("Guardado"); await precarga(); renderAdmin(); document.getElementById('admin-rev-box').classList.add('hidden');
-    }
-
-    function renderCal(gid, isOp) {
+    function renderCal(gid, isOp, isFestTab = false) {
         const g = document.getElementById(gid); g.innerHTML = '';
         const user = isOp ? curU : revU;
-        const targetTitle = isOp ? 'month-name' : 'month-name-admin';
+        const targetTitle = isOp ? 'month-name' : (isFestTab ? 'month-name-fest' : 'month-name-admin');
         document.getElementById(targetTitle).innerText = `${new Intl.DateTimeFormat('es',{month:'long'}).format(new Date(curY, curM))} ${curY}`;
         ['L','M','X','J','V','S','D'].forEach(h => g.innerHTML += `<div class="day header">${h}</div>`);
         let off = (new Date(curY, curM, 1).getDay() || 7) - 1;
         for(let i=0; i<off; i++) g.innerHTML += '<div></div>';
         for(let d=1; d<=new Date(curY, curM+1, 0).getDate(); d++) {
             let dt = `${curY}-${String(curM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-            let isD = (new Date(curY, curM, d).getDay() % 6 === 0) || (config.festivos || []).includes(dt);
+            let isFest = config.festivos.includes(dt);
+            let isWeekend = (new Date(curY, curM, d).getDay() % 6 === 0);
             let cls = 'day';
-            if(isD) cls += ' disabled';
-            else if(isOp) {
-                if(user.aprobados.includes(dt)) cls += ' approved';
-                else if(user.solicitudes.includes(dt) || temp.includes(dt)) cls += ' selected';
+            
+            if(isFestTab) {
+                if(tempFestivos.includes(dt)) cls += ' holiday-block';
             } else {
-                if(adminEditAprobs.includes(dt)) cls += ' approved';
-                else if(adminEditSols.includes(dt)) cls += ' selected';
+                if(isFest || isWeekend) cls += ' disabled';
+                else if(isOp) {
+                    if(user.aprobados.includes(dt)) cls += ' approved';
+                    else if(user.solicitudes.includes(dt) || temp.includes(dt)) cls += ' selected';
+                } else {
+                    if(adminEditAprobs.includes(dt)) cls += ' approved';
+                    else if(adminEditSols.includes(dt)) cls += ' selected';
+                }
             }
-            g.innerHTML += `<div class="${cls}" onclick="clDay('${dt}',${isD},${isOp})">${d}</div>`;
+            g.innerHTML += `<div class="${cls}" onclick="clDay('${dt}',${isWeekend},${isOp},${isFestTab})">${d}</div>`;
         }
         if(isOp) document.getElementById('u-days').innerText = user.total_dias - user.aprobados.length;
+    }
+
+    async function crearOperario() {
+        const n = document.getElementById('new-nombre').value, l = document.getElementById('new-login').value, p = document.getElementById('new-pass').value;
+        if(!n || !l || !p) return alert("Faltan datos");
+        await _sb.from('operarios').insert([{ nombre: n, login: l.toLowerCase(), pass: p, total_dias: 26 }]);
+        alert("Alta correcta"); await precarga(); renderAdmin(); renderDeleteList();
+    }
+
+    async function eliminarOperario(id, nombre) {
+        if(confirm(`¿Eliminar a ${nombre}?`)) { await _sb.from('operarios').delete().eq('id', id); await precarga(); renderAdmin(); renderDeleteList(); }
+    }
+
+    function openRev(id) {
+        revU = users.find(u => u.id === id); adminEditAprobs = [...revU.aprobados]; adminEditSols = [...revU.solicitudes];
+        document.getElementById('admin-rev-box').classList.remove('hidden');
+        document.getElementById('rev-name').innerText = revU.nombre; renderCal('rev-calendar', false);
+    }
+
+    async function saveAdminChanges() {
+        await _sb.from('operarios').update({ aprobados: adminEditAprobs, solicitudes: adminEditSols }).eq('id', revU.id);
+        alert("Guardado"); await precarga(); renderAdmin(); document.getElementById('admin-rev-box').classList.add('hidden');
     }
 
     async function solicitar() {
@@ -256,9 +253,9 @@
         alert("Enviado"); temp = []; await precarga(); renderCal('calendar-grid', true);
     }
 
-    function logout() { curU = null; revU = null; temp = []; showScreen('login-screen'); }
+    function logout() { curU = null; showScreen('login-screen'); }
     function showScreen(id) { document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden')); document.getElementById(id).classList.remove('hidden'); }
-    function changeMonth(n) { curM += n; if(curM > 11){curM=0;curY++;} if(curM < 0){curM=11;curY--;} renderCal(curU ? 'calendar-grid' : 'rev-calendar', !!curU); }
+    function changeMonth(n) { curM += n; if(curM > 11){curM=0;curY++;} if(curM < 0){curM=11;curY--;} renderCal(curU ? 'calendar-grid' : (document.getElementById('admin-tab-fest').classList.contains('hidden') ? 'rev-calendar' : 'fest-calendar'), !!curU, !document.getElementById('admin-tab-fest').classList.contains('hidden')); }
 
     precarga();
 </script>
